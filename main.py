@@ -1,34 +1,52 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+"""
+情報
+中野エリアの賃貸情報を取得し
 
+- csv書き出し(ローカル)
+- ページ遷移なし
+"""
 
-class ScreenshotTaker:
-    def __init__(self):
-        # WebDriverの初期化をコンストラクタで行います
-        webdriver_path = ChromeDriverManager().install()
-        self.driver = webdriver.Chrome(service=Service(webdriver_path))
+import csv
+import os
+import requests
+from bs4 import BeautifulSoup
 
-    def take_screenshot(self, url, save_file_path):
-        # 指定したURLにアクセス
-        self.driver.get(url)
+# スクレイピングを行いたいページのURL
+url = "https://suumo.jp/chintai/tokyo/ek_27280/"
 
-        # スクリーンショットを撮影
-        self.driver.save_screenshot(save_file_path)
+# セッションを開始
+session = requests.Session()
+session.headers.update(
+    {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+    }
+)
 
-    def close_browser(self):
-        # ブラウザを閉じる
-        self.driver.quit()
+# サイトの情報を取得
+response = session.get(url)
+response.raise_for_status()
 
+# HTMLコンテンツを解析
+soup = BeautifulSoup(response.text, "html.parser")
 
-def main():
-    taker = ScreenshotTaker()
-    try:
-        taker.take_screenshot("https://www.google.com", "screenshot.png")
-    finally:
-        # エラーが発生してもブラウザが閉じられるようにする
-        taker.close_browser()
+# 賃貸の名前と価格を取得
+titles = soup.find_all(class_="cassetteitem_content-title")
+prices = soup.find_all(class_="cassetteitem_other-emphasis ui-text--bold")
 
+# フォルダのパス
+folder_path = "output"
 
-if __name__ == "__main__":
-    main()
+# フォルダが存在しない場合は作成
+os.makedirs(folder_path, exist_ok=True)
+
+# ファイルパスの設定
+file_path = os.path.join(folder_path, "rentals.csv")
+
+# CSVファイルへの書き出し
+with open(file_path, mode="w", newline="", encoding="utf-8") as file:
+    writer = csv.writer(file)
+    writer.writerow(["名前", "価格"])  # ヘッダーの書き込み
+
+    # 各賃貸の名前と価格を書き込む
+    for title, price in zip(titles, prices):
+        writer.writerow([title.text.strip(), price.text.strip()])
